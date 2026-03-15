@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>WiFi Speed Tester</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07080f;--bg2:#0c0e1a;--bg3:#111428;--bg4:#161b2e;
+  --border:rgba(99,120,255,0.15);--border2:rgba(99,120,255,0.3);
+  --cyan:#00d4ff;--green:#00ff88;--orange:#ff8c00;--red:#ff3366;--purple:#a855f7;
+  --text:#e2e8f0;--muted:#64748b;--orb:'Orbitron',monospace;--body:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--body);overflow-x:hidden;}
+
+/* Animated bg */
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 80% 50% at 20% 20%,rgba(0,212,255,0.04) 0%,transparent 60%),
+             radial-gradient(ellipse 60% 40% at 80% 80%,rgba(168,85,247,0.04) 0%,transparent 60%);
+  pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(99,120,255,0.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(99,120,255,0.03) 1px,transparent 1px);
+  background-size:32px 32px;pointer-events:none;z-index:0;}
+
+.app{position:relative;z-index:1;max-width:1300px;margin:0 auto;padding:20px;}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+.logo{display:flex;align-items:center;gap:14px;}
+.logo-mark{width:44px;height:44px;border:1px solid var(--cyan);border-radius:8px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.logo-mark::before{content:'';position:absolute;inset:0;background:conic-gradient(from 0deg,transparent 240deg,var(--cyan) 360deg);animation:spin 2.5s linear infinite;opacity:.6;}
+.logo-mark::after{content:'';position:absolute;inset:2px;background:var(--bg);border-radius:6px;}
+.logo-mark svg{position:relative;z-index:1;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.logo-text h1{font-family:var(--orb);font-size:16px;font-weight:700;letter-spacing:3px;color:#fff;}
+.logo-text p{font-size:11px;color:var(--muted);letter-spacing:2px;margin-top:2px;}
+.header-right{display:flex;align-items:center;gap:12px;}
+.hbadge{font-family:var(--orb);font-size:10px;padding:4px 12px;border-radius:3px;border:1px solid;letter-spacing:1px;}
+.hbadge.connected{border-color:var(--green);color:var(--green);}
+.hbadge.disconnected{border-color:var(--red);color:var(--red);}
+#hclock{font-family:var(--orb);font-size:11px;color:var(--muted);}
+
+/* WiFi info bar */
+.info-bar{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px;}
+.info-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.info-card .lbl{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;}
+.info-card .val{font-family:var(--orb);font-size:14px;color:var(--cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.info-card.signal .val{color:var(--green);}
+
+/* Speed gauge section */
+.speed-section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:20px;position:relative;overflow:hidden;}
+.speed-section::before{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(0,212,255,0.06),transparent 70%);}
+.speed-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
+.speed-header h2{font-family:var(--orb);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;}
+.start-btn{font-family:var(--orb);font-size:12px;letter-spacing:2px;padding:12px 32px;border-radius:6px;border:1px solid var(--cyan);background:rgba(0,212,255,0.08);color:var(--cyan);cursor:pointer;transition:all .2s;text-transform:uppercase;}
+.start-btn:hover{background:rgba(0,212,255,0.15);box-shadow:0 0 20px rgba(0,212,255,0.2);}
+.start-btn:disabled{opacity:.4;cursor:not-allowed;}
+.start-btn.running{border-color:var(--orange);color:var(--orange);background:rgba(255,140,0,0.08);animation:btnPulse 1s ease-in-out infinite;}
+@keyframes btnPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,140,0,0.4);}50%{box-shadow:0 0 0 8px rgba(255,140,0,0);}}
+
+.gauges{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;align-items:center;}
+.gauge-wrap{text-align:center;}
+.gauge-canvas-wrap{position:relative;width:160px;height:160px;margin:0 auto 12px;}
+.gauge-canvas-wrap canvas{width:160px!important;height:160px!important;}
+.gauge-val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.gauge-num{font-family:var(--orb);font-size:26px;font-weight:700;line-height:1;}
+.gauge-unit{font-size:11px;color:var(--muted);letter-spacing:1px;margin-top:3px;}
+.gauge-lbl{font-family:var(--orb);font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;}
+.gauge-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+
+.mini-stats{display:flex;flex-direction:column;gap:10px;}
+.mini-stat{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;}
+.mini-stat .ms-lbl{font-size:12px;color:var(--muted);}
+.mini-stat .ms-val{font-family:var(--orb);font-size:16px;}
+
+/* Progress bar */
+.progress-wrap{margin-top:16px;}
+.progress-lbl{font-family:var(--orb);font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:6px;display:flex;justify-content:space-between;}
+.progress-track{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:2px;transition:width .3s ease;width:0%;}
+.progress-fill.dl{background:linear-gradient(90deg,var(--cyan),var(--green));}
+.progress-fill.ul{background:linear-gradient(90deg,var(--purple),var(--orange));}
+
+/* Live speed chart */
+.live-chart-wrap{position:relative;height:80px;margin-top:16px;}
+
+/* Bottom grid */
+.bottom-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.panel-hdr h3{font-family:var(--orb);font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:8px;}
+.panel-hdr h3::before{content:'';width:3px;height:12px;background:var(--cyan);border-radius:2px;flex-shrink:0;}
+.run-btn{font-family:var(--orb);font-size:10px;padding:5px 14px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--cyan);cursor:pointer;letter-spacing:1px;transition:all .15s;}
+.run-btn:hover{background:rgba(0,212,255,0.08);}
+.run-btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* Ping */
+.ping-host-row{display:flex;gap:6px;margin-bottom:12px;}
+.ping-host-row input{flex:1;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--orb);font-size:11px;outline:none;}
+.ping-host-row input:focus{border-color:var(--border2);}
+.ping-results{display:flex;gap:8px;margin-bottom:12px;}
+.ping-stat{flex:1;background:var(--bg3);border-radius:5px;padding:8px;text-align:center;}
+.ping-stat .pv{font-family:var(--orb);font-size:16px;color:var(--green);}
+.ping-stat .pl{font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:1px;}
+.ping-chart-wrap{height:70px;position:relative;}
+
+/* DNS */
+.dns-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);}
+.dns-row:last-child{border-bottom:none;}
+.dns-name{font-size:12px;flex:1;color:var(--text);}
+.dns-ip{font-family:var(--orb);font-size:10px;color:var(--muted);width:110px;}
+.dns-bar-wrap{flex:1;}
+.dns-bar-track{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.dns-bar-fill{height:100%;border-radius:2px;background:var(--cyan);transition:width .6s ease;}
+.dns-ms{font-family:var(--orb);font-size:11px;width:48px;text-align:right;color:var(--cyan);}
+
+/* Traceroute */
+.hop-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);animation:hopIn .3s ease both;}
+@keyframes hopIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.hop-num{font-family:var(--orb);font-size:11px;color:var(--muted);width:20px;text-align:center;}
+.hop-ip{font-family:var(--orb);font-size:11px;color:var(--cyan);flex:1;}
+.hop-bar-wrap{width:80px;}
+.hop-bar-track{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.hop-bar-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--green),var(--orange));transition:width .6s ease;}
+.hop-ms{font-family:var(--orb);font-size:11px;width:36px;text-align:right;}
+
+/* History */
+.history-section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;}
+.hist-chart-wrap{height:120px;position:relative;}
+.hist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:14px;}
+.hist-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-size:12px;}
+.hist-card .hc-time{font-family:var(--orb);font-size:10px;color:var(--muted);margin-bottom:4px;}
+.hist-card .hc-vals{display:flex;gap:12px;flex-wrap:wrap;}
+.hist-card .hc-v{color:var(--cyan);font-family:var(--orb);font-size:12px;}
+.hist-card .hc-l{color:var(--muted);font-size:11px;}
+
+/* Status bar */
+#status-bar{font-family:var(--orb);font-size:10px;color:var(--orange);letter-spacing:2px;padding:6px 0;min-height:22px;text-align:center;}
+
+/* Flicker animation */
+@keyframes flicker{0%,100%{opacity:1}92%{opacity:1}93%{opacity:.4}94%{opacity:1}97%{opacity:.7}98%{opacity:1}}
+
+footer{text-align:center;padding:16px 0 4px;font-family:var(--orb);font-size:10px;color:var(--muted);letter-spacing:3px;}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M1.5 8.5C5.5 4.5 10.5 2.5 12 2.5s6.5 2 10.5 6" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        <path d="M4.5 11.5C7.5 8.5 10 7 12 7s4.5 1.5 7.5 4.5" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        <path d="M7.5 14.5C9 13 10.5 12 12 12s3 1 4.5 2.5" stroke="#00d4ff" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        <circle cx="12" cy="18" r="1.5" fill="#00d4ff"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <h1>NetPulse Pro</h1>
+      <p>Advanced WiFi Diagnostics</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="conn-badge" class="hbadge disconnected">CONNECTING</span>
+    <span id="hclock">--:--:--</span>
+  </div>
+</header>
+
+<!-- Info bar -->
+<div class="info-bar">
+  <div class="info-card"><div class="lbl">Network</div><div class="val" id="i-ssid">—</div></div>
+  <div class="info-card signal"><div class="lbl">Signal</div><div class="val" id="i-signal">—</div></div>
+  <div class="info-card"><div class="lbl">dBm</div><div class="val" id="i-dbm">—</div></div>
+  <div class="info-card"><div class="lbl">Band</div><div class="val" id="i-band">—</div></div>
+  <div class="info-card"><div class="lbl">Channel</div><div class="val" id="i-ch">—</div></div>
+  <div class="info-card"><div class="lbl">Local IP</div><div class="val" id="i-ip">—</div></div>
+</div>
+
+<!-- Speed test -->
+<div class="speed-section">
+  <div class="speed-header">
+    <h2>Speed Test</h2>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div id="status-bar"></div>
+      <button class="start-btn" id="start-btn" onclick="startSpeed()">Run Test</button>
+    </div>
+  </div>
+
+  <div class="gauges">
+    <!-- Download gauge -->
+    <div class="gauge-wrap">
+      <div class="gauge-canvas-wrap">
+        <canvas id="g-download"></canvas>
+        <div class="gauge-val">
+          <div class="gauge-num" id="gv-download" style="color:var(--cyan)">0</div>
+          <div class="gauge-unit">Mbps</div>
+        </div>
+      </div>
+      <div class="gauge-lbl">Download</div>
+    </div>
+
+    <!-- Upload gauge -->
+    <div class="gauge-wrap">
+      <div class="gauge-canvas-wrap">
+        <canvas id="g-upload"></canvas>
+        <div class="gauge-val">
+          <div class="gauge-num" id="gv-upload" style="color:var(--purple)">0</div>
+          <div class="gauge-unit">Mbps</div>
+        </div>
+      </div>
+      <div class="gauge-lbl">Upload</div>
+    </div>
+
+    <!-- Ping gauge -->
+    <div class="gauge-wrap">
+      <div class="gauge-canvas-wrap">
+        <canvas id="g-ping"></canvas>
+        <div class="gauge-val">
+          <div class="gauge-num" id="gv-ping" style="color:var(--green)">0</div>
+          <div class="gauge-unit">ms</div>
+        </div>
+      </div>
+      <div class="gauge-lbl">Ping</div>
+    </div>
+
+    <!-- Mini stats -->
+    <div class="mini-stats">
+      <div class="mini-stat"><span class="ms-lbl">Jitter</span><span class="ms-val" id="ms-jitter" style="color:var(--orange)">— ms</span></div>
+      <div class="mini-stat"><span class="ms-lbl">Packet Loss</span><span class="ms-val" id="ms-loss" style="color:var(--red)">— %</span></div>
+      <div class="mini-stat"><span class="ms-lbl">Rating</span><span class="ms-val" id="ms-rating" style="color:var(--green)">—</span></div>
+      <div class="mini-stat"><span class="ms-lbl">Last Test</span><span class="ms-val" id="ms-time" style="color:var(--muted);font-size:12px">—</span></div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap">
+    <div class="progress-lbl"><span id="prog-lbl">Ready</span><span id="prog-pct">0%</span></div>
+    <div class="progress-track"><div class="progress-fill dl" id="prog-fill"></div></div>
+  </div>
+
+  <!-- Live chart -->
+  <div class="live-chart-wrap"><canvas id="live-chart"></canvas></div>
+</div>
+
+<!-- Bottom panels -->
+<div class="bottom-grid">
+
+  <!-- Ping test -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <h3>Ping Test</h3>
+      <button class="run-btn" id="ping-btn" onclick="runPing()">Run</button>
+    </div>
+    <div class="ping-host-row">
+      <input type="text" id="ping-host" value="8.8.8.8" placeholder="Host / IP">
+    </div>
+    <div class="ping-results">
+      <div class="ping-stat"><div class="pv" id="p-min">—</div><div class="pl">MIN</div></div>
+      <div class="ping-stat"><div class="pv" id="p-avg" style="color:var(--cyan)">—</div><div class="pl">AVG</div></div>
+      <div class="ping-stat"><div class="pv" id="p-max" style="color:var(--orange)">—</div><div class="pl">MAX</div></div>
+      <div class="ping-stat"><div class="pv" id="p-jit" style="color:var(--purple)">—</div><div class="pl">JITTER</div></div>
+    </div>
+    <div class="ping-chart-wrap"><canvas id="ping-chart"></canvas></div>
+  </div>
+
+  <!-- DNS test -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <h3>DNS Latency</h3>
+      <button class="run-btn" id="dns-btn" onclick="runDNS()">Test</button>
+    </div>
+    <div id="dns-rows">
+      <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Click Test to measure DNS servers</div>
+    </div>
+  </div>
+
+  <!-- Traceroute -->
+  <div class="panel">
+    <div class="panel-hdr">
+      <h3>Traceroute</h3>
+      <button class="run-btn" id="trace-btn" onclick="runTrace()">Trace</button>
+    </div>
+    <div id="trace-rows">
+      <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">Click Trace to map network path</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- History -->
+<div class="history-section">
+  <div class="panel-hdr">
+    <h3 style="font-family:var(--orb);font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+      <span style="display:inline-block;width:3px;height:12px;background:var(--cyan);border-radius:2px;"></span>
+      Speed History
+    </h3>
+    <button class="run-btn" onclick="sendMsg({action:'history'})">Refresh</button>
+  </div>
+  <div class="hist-chart-wrap"><canvas id="hist-chart"></canvas></div>
+  <div class="hist-grid" id="hist-grid"></div>
+</div>
+
+</div>
+<footer>NETPULSE PRO &nbsp;·&nbsp; WIFI DIAGNOSTICS &nbsp;·&nbsp; LOCALHOST:8000</footer>
+
+<script>
+// ── Gauge factory ────────────────────────────────────────────────────
+function makeGauge(id, color, max) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'doughnut',
+    data: { datasets: [{ data: [0, max], backgroundColor: [color, 'rgba(255,255,255,0.04)'], borderWidth: 0, circumference: 240, rotation: 240 }] },
+    options: {
+      animation: { duration: 500 }, responsive: false, cutout: '76%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } }
+    }
+  });
+}
+
+const gDownload = makeGauge('g-download', '#00d4ff', 200);
+const gUpload   = makeGauge('g-upload',   '#a855f7', 100);
+const gPing     = makeGauge('g-ping',     '#00ff88', 200);
+
+function setGauge(chart, val, max, elId, color) {
+  const clamped = Math.min(val, max);
+  chart.data.datasets[0].data = [clamped, max - clamped];
+  chart.update('none');
+  const el = document.getElementById(elId);
+  if (el) { el.textContent = Math.round(val); el.style.color = color; }
+}
+
+// ── Live speed chart ─────────────────────────────────────────────────
+const liveCtx = document.getElementById('live-chart').getContext('2d');
+const liveChart = new Chart(liveCtx, {
+  type: 'line',
+  data: {
+    labels: Array(40).fill(''),
+    datasets: [
+      { label: 'DL', data: Array(40).fill(null), borderColor: '#00d4ff', borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: false },
+      { label: 'UL', data: Array(40).fill(null), borderColor: '#a855f7', borderWidth: 1.5, pointRadius: 0, tension: 0.4, fill: false }
+    ]
+  },
+  options: {
+    animation: false, responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: true, labels: { color: '#64748b', font: { size: 10, family: "'Orbitron'" }, boxWidth: 12, padding: 10 } }, tooltip: { enabled: false } },
+    scales: {
+      x: { display: false },
+      y: { min: 0, grid: { color: 'rgba(99,120,255,0.06)' }, border: { display: false },
+           ticks: { color: '#64748b', font: { size: 10, family: "'Orbitron'" }, maxTicksLimit: 4 } }
+    }
+  }
+});
+
+let dlHistory = Array(40).fill(null), ulHistory = Array(40).fill(null);
+function pushLive(dl, ul) {
+  dlHistory.push(dl); dlHistory.shift();
+  ulHistory.push(ul); ulHistory.shift();
+  liveChart.data.datasets[0].data = [...dlHistory];
+  liveChart.data.datasets[1].data = [...ulHistory];
+  liveChart.update('none');
+}
+
+// ── Ping chart ───────────────────────────────────────────────────────
+const pingCtx = document.getElementById('ping-chart').getContext('2d');
+const pingChart = new Chart(pingCtx, {
+  type: 'bar',
+  data: { labels: [], datasets: [{ data: [], backgroundColor: '#00ff8880', borderRadius: 3, borderWidth: 0 }] },
+  options: {
+    animation: false, responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: {
+      x: { display: false },
+      y: { min: 0, grid: { color: 'rgba(99,120,255,0.06)' }, border: { display: false },
+           ticks: { color: '#64748b', font: { size: 9 }, maxTicksLimit: 3 } }
+    }
+  }
+});
+
+// ── History chart ────────────────────────────────────────────────────
+const histCtx = document.getElementById('hist-chart').getContext('2d');
+const histChart = new Chart(histCtx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'Download', data: [], borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.06)', borderWidth: 1.5, pointRadius: 3, pointBackgroundColor: '#00d4ff', tension: 0.4, fill: true },
+      { label: 'Upload', data: [], borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.06)', borderWidth: 1.5, pointRadius: 3, pointBackgroundColor: '#a855f7', tension: 0.4, fill: true }
+    ]
+  },
+  options: {
+    animation: false, responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: true, labels: { color: '#64748b', font: { size: 10, family: "'Orbitron'" }, boxWidth: 12, padding: 10 } }, tooltip: { enabled: true } },
+    scales: {
+      x: { ticks: { color: '#64748b', font: { size: 9, family: "'Orbitron'" }, maxTicksLimit: 8 }, grid: { color: 'rgba(99,120,255,0.04)' }, border: { display: false } },
+      y: { min: 0, grid: { color: 'rgba(99,120,255,0.06)' }, border: { display: false }, ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 4 } }
+    }
+  }
+});
+
+// ── Rating helper ────────────────────────────────────────────────────
+function getRating(dl, ping) {
+  if (dl > 80 && ping < 20) return { text: 'EXCELLENT', color: '#00ff88' };
+  if (dl > 40 && ping < 50) return { text: 'GOOD', color: '#00d4ff' };
+  if (dl > 15 && ping < 100) return { text: 'FAIR', color: '#ff8c00' };
+  return { text: 'POOR', color: '#ff3366' };
+}
+
+function getPingColor(ms) {
+  if (ms < 20) return '#00ff88';
+  if (ms < 50) return '#00d4ff';
+  if (ms < 100) return '#ff8c00';
+  return '#ff3366';
+}
+
+// ── WebSocket ────────────────────────────────────────────────────────
+let ws, reconnTimer;
+let testing = false;
+let currentDL = 0, currentUL = 0;
+
+function sendMsg(obj) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+function setStatus(msg) {
+  document.getElementById('status-bar').textContent = msg ? '▸ ' + msg : '';
+}
+
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => {
+    document.getElementById('conn-badge').textContent = 'CONNECTED';
+    document.getElementById('conn-badge').className = 'hbadge connected';
+    clearTimeout(reconnTimer);
+  };
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+
+    if (d.type === 'info') {
+      const i = d.data;
+      document.getElementById('i-ssid').textContent    = i.ssid || '—';
+      document.getElementById('i-signal').textContent  = i.signal ? i.signal + '%' : '—';
+      document.getElementById('i-dbm').textContent     = i.dbm != null ? i.dbm + ' dBm' : '—';
+      document.getElementById('i-band').textContent    = i.band || '—';
+      document.getElementById('i-ch').textContent      = i.channel || '—';
+      document.getElementById('i-ip').textContent      = i.ip || '—';
+      // Signal color
+      const s = parseInt(i.signal);
+      const sigEl = document.getElementById('i-signal');
+      sigEl.style.color = s > 70 ? 'var(--green)' : s > 40 ? 'var(--orange)' : 'var(--red)';
+    }
+
+    if (d.type === 'status') setStatus(d.msg);
+
+    if (d.type === 'speed_phase') {
+      const isDL = d.phase === 'download';
+      document.getElementById('prog-lbl').textContent = isDL ? 'DOWNLOAD' : 'UPLOAD';
+      const fill = document.getElementById('prog-fill');
+      fill.className = 'progress-fill ' + (isDL ? 'dl' : 'ul');
+      fill.style.width = '0%';
+    }
+
+    if (d.type === 'speed_progress') {
+      document.getElementById('prog-fill').style.width = d.progress + '%';
+      document.getElementById('prog-pct').textContent = d.progress + '%';
+      if (d.phase === 'download') {
+        currentDL = d.value;
+        setGauge(gDownload, d.value, 200, 'gv-download', '#00d4ff');
+        pushLive(d.value, currentUL);
+      } else {
+        currentUL = d.value;
+        setGauge(gUpload, d.value, 100, 'gv-upload', '#a855f7');
+        pushLive(currentDL, d.value);
+      }
+    }
+
+    if (d.type === 'speed_result') {
+      const r = d.data;
+      testing = false;
+      const btn = document.getElementById('start-btn');
+      btn.disabled = false; btn.textContent = 'Run Again'; btn.className = 'start-btn';
+      setGauge(gDownload, r.download, 200, 'gv-download', '#00d4ff');
+      setGauge(gUpload,   r.upload,   100, 'gv-upload',   '#a855f7');
+      setGauge(gPing,     r.ping,     200, 'gv-ping',     getPingColor(r.ping));
+      document.getElementById('ms-jitter').textContent = r.jitter + ' ms';
+      document.getElementById('ms-loss').textContent   = '0 %';
+      document.getElementById('ms-time').textContent   = r.time;
+      const rating = getRating(r.download, r.ping);
+      const ratingEl = document.getElementById('ms-rating');
+      ratingEl.textContent = rating.text; ratingEl.style.color = rating.color;
+      document.getElementById('prog-fill').style.width = '100%';
+      document.getElementById('prog-pct').textContent = '100%';
+      document.getElementById('prog-lbl').textContent = 'COMPLETE';
+      setStatus('Test complete — ' + r.download + ' Mbps down / ' + r.upload + ' Mbps up');
+    }
+
+    if (d.type === 'ping_result') {
+      const r = d.data;
+      document.getElementById('p-min').textContent = r.min + 'ms';
+      document.getElementById('p-avg').textContent = r.avg + 'ms';
+      document.getElementById('p-max').textContent = r.max + 'ms';
+      document.getElementById('p-jit').textContent = r.jitter + 'ms';
+      document.getElementById('p-avg').style.color = getPingColor(r.avg);
+      if (r.samples) {
+        pingChart.data.labels = r.samples.map((_,i) => i+1+'');
+        pingChart.data.datasets[0].data = r.samples;
+        pingChart.data.datasets[0].backgroundColor = r.samples.map(v => {
+          if (v < 30) return '#00ff8880';
+          if (v < 80) return '#ff8c0080';
+          return '#ff336680';
+        });
+        pingChart.update();
+      }
+      document.getElementById('ping-btn').disabled = false;
+      setStatus('');
+    }
+
+    if (d.type === 'dns_result') {
+      const maxMs = Math.max(...d.data.map(r => r.ms));
+      document.getElementById('dns-rows').innerHTML = d.data.map(r => `
+        <div class="dns-row">
+          <span class="dns-name">${r.name}</span>
+          <span class="dns-ip">${r.ip}</span>
+          <div class="dns-bar-wrap"><div class="dns-bar-track"><div class="dns-bar-fill" style="width:${Math.round((r.ms/maxMs)*100)}%"></div></div></div>
+          <span class="dns-ms">${r.ms}ms</span>
+        </div>`).join('');
+      document.getElementById('dns-btn').disabled = false;
+      setStatus('');
+    }
+
+    if (d.type === 'traceroute_result') {
+      document.getElementById('trace-rows').innerHTML = d.data.map((h,i) => `
+        <div class="hop-row" style="animation-delay:${i*0.08}s">
+          <span class="hop-num">${h.hop}</span>
+          <span class="hop-ip">${h.ip}</span>
+          <div class="hop-bar-wrap"><div class="hop-bar-track">
+            <div class="hop-bar-fill" style="width:${h.latency==='*'?0:Math.min(100,parseInt(h.latency)*2)}%"></div>
+          </div></div>
+          <span class="hop-ms" style="color:${h.latency==='*'?'var(--muted)':parseInt(h.latency)<30?'var(--green)':parseInt(h.latency)<80?'var(--orange)':'var(--red)'}">${h.latency==='*'?'*':h.latency+'ms'}</span>
+        </div>`).join('');
+      document.getElementById('trace-btn').disabled = false;
+      setStatus('');
+    }
+
+    if (d.type === 'history') {
+      const speeds = d.data.filter(r => r.type === 'speed');
+      if (speeds.length) {
+        histChart.data.labels = speeds.map(r => r.time);
+        histChart.data.datasets[0].data = speeds.map(r => r.download);
+        histChart.data.datasets[1].data = speeds.map(r => r.upload);
+        histChart.update();
+        document.getElementById('hist-grid').innerHTML = speeds.slice(-6).reverse().map(r => `
+          <div class="hist-card">
+            <div class="hc-time">${r.time}</div>
+            <div class="hc-vals">
+              <span class="hc-l">DL</span><span class="hc-v">${r.download} Mbps</span>
+              <span class="hc-l">UL</span><span class="hc-v">${r.upload} Mbps</span>
+              <span class="hc-l">Ping</span><span class="hc-v">${r.ping}ms</span>
+            </div>
+          </div>`).join('');
+      }
+    }
+  };
+  ws.onclose = () => {
+    document.getElementById('conn-badge').textContent = 'RECONNECTING';
+    document.getElementById('conn-badge').className = 'hbadge disconnected';
+    reconnTimer = setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
+}
+
+function startSpeed() {
+  if (testing) return;
+  testing = true;
+  dlHistory = Array(40).fill(null);
+  ulHistory = Array(40).fill(null);
+  currentDL = 0; currentUL = 0;
+  setGauge(gDownload, 0, 200, 'gv-download', '#00d4ff');
+  setGauge(gUpload,   0, 100, 'gv-upload',   '#a855f7');
+  setGauge(gPing,     0, 200, 'gv-ping',     '#00ff88');
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true; btn.textContent = 'Testing...'; btn.className = 'start-btn running';
+  document.getElementById('prog-fill').style.width = '0%';
+  document.getElementById('prog-pct').textContent = '0%';
+  sendMsg({ action: 'speedtest' });
+}
+
+function runPing() {
+  const host = document.getElementById('ping-host').value || '8.8.8.8';
+  document.getElementById('ping-btn').disabled = true;
+  sendMsg({ action: 'ping', host });
+}
+
+function runDNS() {
+  document.getElementById('dns-btn').disabled = true;
+  document.getElementById('dns-rows').innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;font-family:var(--orb);letter-spacing:2px">TESTING...</div>';
+  sendMsg({ action: 'dns' });
+}
+
+function runTrace() {
+  document.getElementById('trace-btn').disabled = true;
+  document.getElementById('trace-rows').innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;font-family:var(--orb);letter-spacing:2px">TRACING...</div>';
+  sendMsg({ action: 'traceroute' });
+}
+
+setInterval(() => { document.getElementById('hclock').textContent = new Date().toLocaleTimeString(); }, 1000);
+setInterval(() => { if (ws && ws.readyState === 1) sendMsg({ action: 'refresh' }); }, 10000);
+
+window.addEventListener('load', connect);
+</script>
+</body>
+</html>
