@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panda Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Pacifico&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --text: #eaeaea;
+    --muted: #8892a4;
+    --input-bg: #0d1b2a;
+    --border: #2a3a5c;
+    --white: #ffffff;
+    --panda-white: #f5f5f0;
+    --panda-black: #1a1a1a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: 'Nunito', sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Animated background blobs */
+  body::before, body::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+    animation: blobFloat 8s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  body::before {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, #e94560, #9b2335);
+    top: -150px; left: -150px;
+  }
+  body::after {
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, #0f3460, #1a6b8a);
+    bottom: -200px; right: -200px;
+    animation-delay: -4s;
+  }
+
+  @keyframes blobFloat {
+    0% { transform: translate(0,0) scale(1); }
+    100% { transform: translate(40px, 30px) scale(1.1); }
+  }
+
+  /* Floating stars */
+  .stars { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .star {
+    position: absolute;
+    width: 3px; height: 3px;
+    background: white;
+    border-radius: 50%;
+    opacity: 0;
+    animation: twinkle var(--dur, 4s) ease-in-out var(--delay, 0s) infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 0.7; transform: scale(1.2); }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    padding: 48px 44px 44px;
+    width: 420px;
+    position: relative;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    animation: cardIn 0.7s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(40px) scale(0.92); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ── PANDA SVG ── */
+  .panda-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .panda-svg {
+    width: 120px;
+    height: 120px;
+    filter: drop-shadow(0 8px 24px rgba(233,69,96,0.25));
+    transition: transform 0.3s ease;
+  }
+  .panda-svg:hover { transform: scale(1.05) rotate(-2deg); }
+
+  /* Panda parts */
+  #panda-left-hand, #panda-right-hand {
+    transition: transform 0.4s cubic-bezier(0.34,1.3,0.64,1);
+    transform-origin: center bottom;
+  }
+  #panda-left-eye-open, #panda-right-eye-open,
+  #panda-left-eye-closed, #panda-right-eye-closed {
+    transition: opacity 0.25s ease;
+  }
+  #panda-left-eye-closed, #panda-right-eye-closed { opacity: 0; }
+
+  /* When hiding eyes */
+  .panda-svg.hiding #panda-left-hand {
+    transform: translateX(14px) translateY(-28px) rotate(-20deg);
+  }
+  .panda-svg.hiding #panda-right-hand {
+    transform: translateX(-14px) translateY(-28px) rotate(20deg);
+  }
+  .panda-svg.hiding #panda-left-eye-open,
+  .panda-svg.hiding #panda-right-eye-open { opacity: 0; }
+  .panda-svg.hiding #panda-left-eye-closed,
+  .panda-svg.hiding #panda-right-eye-closed { opacity: 1; }
+
+  /* Title */
+  .brand {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .brand h1 {
+    font-family: 'Pacifico', cursive;
+    font-size: 2rem;
+    color: var(--white);
+    letter-spacing: 1px;
+    line-height: 1;
+  }
+  .brand h1 span { color: var(--accent); }
+  .brand p {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 6px;
+    font-weight: 600;
+  }
+
+  /* Form */
+  .form-group { margin-bottom: 18px; position: relative; }
+  label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .input-icon {
+    position: absolute;
+    left: 14px;
+    color: var(--muted);
+    font-size: 1rem;
+    pointer-events: none;
+    transition: color 0.2s;
+  }
+  input {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 14px 14px 44px;
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 0.25s, box-shadow 0.25s;
+  }
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(233,69,96,0.15);
+  }
+  input:focus + .input-icon,
+  .input-wrap:focus-within .input-icon { color: var(--accent); }
+  input::placeholder { color: #3a4a60; }
+
+  .toggle-pw {
+    position: absolute;
+    right: 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 1.1rem;
+    padding: 4px;
+    transition: color 0.2s, transform 0.2s;
+    line-height: 1;
+  }
+  .toggle-pw:hover { color: var(--accent); transform: scale(1.15); }
+
+  /* Options row */
+  .options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    margin-top: -4px;
+  }
+  .remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .remember input[type="checkbox"] {
+    width: 16px; height: 16px;
+    padding: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .remember span {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .forgot {
+    font-size: 0.82rem;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 800;
+    transition: opacity 0.2s;
+  }
+  .forgot:hover { opacity: 0.75; }
+
+  /* Submit button */
+  .btn-login {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, #e94560 0%, #c0392b 100%);
+    border: none;
+    border-radius: 14px;
+    color: white;
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 6px 24px rgba(233,69,96,0.35);
+  }
+  .btn-login::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .btn-login:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(233,69,96,0.45); }
+  .btn-login:hover::before { opacity: 1; }
+  .btn-login:active { transform: translateY(0); }
+
+  /* Divider */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .divider span { font-size: 0.75rem; color: var(--muted); font-weight: 700; }
+
+  /* Social buttons */
+  .social-btns {
+    display: flex;
+    gap: 12px;
+  }
+  .social-btn {
+    flex: 1;
+    padding: 11px;
+    background: var(--input-bg);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  }
+  .social-btn:hover {
+    border-color: var(--accent);
+    background: rgba(233,69,96,0.07);
+    transform: translateY(-1px);
+  }
+  .social-btn svg { width: 18px; height: 18px; }
+
+  .signup-link {
+    text-align: center;
+    margin-top: 22px;
+    font-size: 0.83rem;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .signup-link a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 900;
+    transition: opacity 0.2s;
+  }
+  .signup-link a:hover { opacity: 0.75; }
+
+  /* Panda peek animation */
+  @keyframes peekIn {
+    0% { transform: translateY(10px); opacity: 0.5; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .panda-svg { animation: peekIn 0.6s cubic-bezier(0.34,1.56,0.64,1) both 0.3s; }
+
+  /* Ripple */
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    transform: scale(0);
+    animation: rippleAnim 0.6s linear;
+    pointer-events: none;
+  }
+  @keyframes rippleAnim {
+    to { transform: scale(4); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Stars -->
+<div class="stars" id="stars"></div>
+
+<div class="card">
+
+  <!-- Panda SVG -->
+  <div class="panda-wrap">
+    <svg class="panda-svg" id="panda" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+      <!-- Body -->
+      <ellipse cx="60" cy="88" rx="28" ry="22" fill="#f5f5f0"/>
+      <!-- Ears -->
+      <ellipse cx="32" cy="36" rx="14" ry="14" fill="#1a1a1a"/>
+      <ellipse cx="88" cy="36" rx="14" ry="14" fill="#1a1a1a"/>
+      <ellipse cx="32" cy="36" rx="8" ry="8" fill="#3a3a3a"/>
+      <ellipse cx="88" cy="36" rx="8" ry="8" fill="#3a3a3a"/>
+      <!-- Head -->
+      <ellipse cx="60" cy="58" rx="32" ry="30" fill="#f5f5f0"/>
+      <!-- Eye patches -->
+      <ellipse cx="46" cy="54" rx="10" ry="9" fill="#1a1a1a"/>
+      <ellipse cx="74" cy="54" rx="10" ry="9" fill="#1a1a1a"/>
+      <!-- Open eyes -->
+      <g id="panda-left-eye-open">
+        <ellipse cx="46" cy="54" rx="5" ry="5.5" fill="white"/>
+        <ellipse cx="47" cy="54" rx="3" ry="3.5" fill="#1a3a60"/>
+        <ellipse cx="47.5" cy="53" rx="1.2" ry="1.2" fill="white"/>
+        <ellipse cx="46" cy="55.5" rx="0.7" ry="0.7" fill="white"/>
+      </g>
+      <g id="panda-right-eye-open">
+        <ellipse cx="74" cy="54" rx="5" ry="5.5" fill="white"/>
+        <ellipse cx="75" cy="54" rx="3" ry="3.5" fill="#1a3a60"/>
+        <ellipse cx="75.5" cy="53" rx="1.2" ry="1.2" fill="white"/>
+        <ellipse cx="74" cy="55.5" rx="0.7" ry="0.7" fill="white"/>
+      </g>
+      <!-- Closed eyes (squiggles) -->
+      <g id="panda-left-eye-closed">
+        <path d="M41 54 Q46 49 51 54" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      </g>
+      <g id="panda-right-eye-closed">
+        <path d="M69 54 Q74 49 79 54" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      </g>
+      <!-- Nose -->
+      <ellipse cx="60" cy="64" rx="5" ry="3.5" fill="#1a1a1a"/>
+      <!-- Nostrils -->
+      <ellipse cx="58" cy="64.5" rx="1.2" ry="0.9" fill="#2a2a2a"/>
+      <ellipse cx="62" cy="64.5" rx="1.2" ry="0.9" fill="#2a2a2a"/>
+      <!-- Mouth -->
+      <path d="M55 69 Q60 74 65 69" stroke="#1a1a1a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      <path d="M60 69 Q60 72 60 72" stroke="#1a1a1a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <!-- Blush -->
+      <ellipse cx="38" cy="66" rx="6" ry="4" fill="#ffb3c1" opacity="0.5"/>
+      <ellipse cx="82" cy="66" rx="6" ry="4" fill="#ffb3c1" opacity="0.5"/>
+      <!-- Arms/Hands -->
+      <g id="panda-left-hand">
+        <ellipse cx="34" cy="88" rx="10" ry="9" fill="#1a1a1a"/>
+        <ellipse cx="34" cy="88" rx="7" ry="6" fill="#2a2a2a"/>
+        <!-- Fingers -->
+        <ellipse cx="27" cy="83" rx="3" ry="2.5" fill="#1a1a1a"/>
+        <ellipse cx="33" cy="81" rx="3" ry="2.5" fill="#1a1a1a"/>
+        <ellipse cx="39" cy="82" rx="3" ry="2.5" fill="#1a1a1a"/>
+      </g>
+      <g id="panda-right-hand">
+        <ellipse cx="86" cy="88" rx="10" ry="9" fill="#1a1a1a"/>
+        <ellipse cx="86" cy="88" rx="7" ry="6" fill="#2a2a2a"/>
+        <!-- Fingers -->
+        <ellipse cx="79" cy="82" rx="3" ry="2.5" fill="#1a1a1a"/>
+        <ellipse cx="85" cy="81" rx="3" ry="2.5" fill="#1a1a1a"/>
+        <ellipse cx="91" cy="83" rx="3" ry="2.5" fill="#1a1a1a"/>
+      </g>
+      <!-- Belly spot -->
+      <ellipse cx="60" cy="90" rx="14" ry="10" fill="#e8e8e2" opacity="0.6"/>
+    </svg>
+  </div>
+
+  <!-- Brand -->
+  <div class="brand">
+    <h1>Panda<span>Pass</span></h1>
+    <p>🐾 Secure · Cute · Reliable</p>
+  </div>
+
+  <!-- Email -->
+  <div class="form-group">
+    <label>Email Address</label>
+    <div class="input-wrap">
+      <input type="email" id="email" placeholder="hello@pandapass.com" autocomplete="off"/>
+      <span class="input-icon">✉️</span>
+    </div>
+  </div>
+
+  <!-- Password -->
+  <div class="form-group">
+    <label>Password</label>
+    <div class="input-wrap">
+      <input type="password" id="password" placeholder="Enter your secret bamboo key"/>
+      <span class="input-icon">🔒</span>
+      <button class="toggle-pw" id="togglePw" type="button" title="Toggle password">
+        👁️
+      </button>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="options">
+    <label class="remember">
+      <input type="checkbox"/> <span>Remember me</span>
+    </label>
+    <a href="#" class="forgot">Forgot password?</a>
+  </div>
+
+  <!-- Login button -->
+  <button class="btn-login" id="loginBtn" type="button">
+    🐼 Sign In
+  </button>
+
+  <!-- Divider -->
+  <div class="divider"><span>or continue with</span></div>
+
+  <!-- Social -->
+  <div class="social-btns">
+    <button class="social-btn">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Google
+    </button>
+    <button class="social-btn">
+      <svg viewBox="0 0 24 24" fill="#1877F2">
+        <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.791-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+      </svg>
+      Facebook
+    </button>
+  </div>
+
+  <p class="signup-link">Don't have an account? <a href="#">Sign up free 🐼</a></p>
+</div>
+
+<script>
+  // ── Stars ──
+  const starsEl = document.getElementById('stars');
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.setProperty('--dur', (3 + Math.random() * 4) + 's');
+    s.style.setProperty('--delay', (Math.random() * 5) + 's');
+    s.style.width = s.style.height = (1.5 + Math.random() * 2.5) + 'px';
+    starsEl.appendChild(s);
+  }
+
+  // ── Panda password interaction ──
+  const panda = document.getElementById('panda');
+  const pwInput = document.getElementById('password');
+  const toggleBtn = document.getElementById('togglePw');
+  let isShowingPw = false;
+
+  pwInput.addEventListener('focus', () => {
+    panda.classList.add('hiding');
+  });
+  pwInput.addEventListener('blur', () => {
+    if (!isShowingPw) panda.classList.remove('hiding');
+  });
+  pwInput.addEventListener('input', () => {
+    if (pwInput.value.length > 0 && !isShowingPw) {
+      panda.classList.add('hiding');
+    } else if (pwInput.value.length === 0 && !isShowingPw) {
+      panda.classList.remove('hiding');
+    }
+  });
+
+  toggleBtn.addEventListener('click', () => {
+    isShowingPw = !isShowingPw;
+    if (isShowingPw) {
+      pwInput.type = 'text';
+      toggleBtn.textContent = '🙈';
+      panda.classList.remove('hiding'); // panda looks when revealed
+    } else {
+      pwInput.type = 'password';
+      toggleBtn.textContent = '👁️';
+      if (pwInput.value.length > 0) panda.classList.add('hiding');
+    }
+  });
+
+  // ── Ripple on login ──
+  document.getElementById('loginBtn').addEventListener('click', function(e) {
+    const btn = this;
+    const circle = document.createElement('span');
+    const diameter = Math.max(btn.clientWidth, btn.clientHeight);
+    const radius = diameter / 2;
+    circle.style.width = circle.style.height = diameter + 'px';
+    circle.style.left = (e.clientX - btn.getBoundingClientRect().left - radius) + 'px';
+    circle.style.top = (e.clientY - btn.getBoundingClientRect().top - radius) + 'px';
+    circle.classList.add('ripple');
+    btn.appendChild(circle);
+    setTimeout(() => circle.remove(), 600);
+
+    // Panda happy bounce
+    panda.style.animation = 'none';
+    panda.style.transform = 'scale(1.12) rotate(3deg)';
+    setTimeout(() => {
+      panda.style.transform = 'scale(1) rotate(0deg)';
+      panda.style.transition = 'transform 0.4s cubic-bezier(0.34,1.56,0.64,1)';
+    }, 150);
+  });
+</script>
+</body>
+</html>
