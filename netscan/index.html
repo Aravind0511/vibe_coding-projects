@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NetScanner — Network Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root {
+  --bg: #07090f;
+  --surface: #0e1320;
+  --surface2: #141b2d;
+  --surface3: #1a2236;
+  --border: rgba(99,179,237,0.10);
+  --border-glow: rgba(99,179,237,0.35);
+  --blue: #63b3ed;
+  --blue-dim: #3a7bd5;
+  --green: #48bb78;
+  --orange: #f6ad55;
+  --red: #fc8181;
+  --purple: #b794f4;
+  --cyan: #76e4f7;
+  --text: #e2e8f0;
+  --text-dim: #718096;
+  --text-muted: #4a5568;
+  --glow-blue: 0 0 30px rgba(99,179,237,0.18);
+  --glow-green: 0 0 20px rgba(72,187,120,0.2);
+  --radius: 14px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 5%, rgba(58,123,213,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 85% 85%, rgba(72,187,120,0.05) 0%, transparent 60%);
+}
+
+/* ── LAYOUT ── */
+.container { position:relative; z-index:1; max-width:1260px; margin:0 auto; padding:28px 22px 80px; }
+
+/* ── TABS ── */
+.tab-bar {
+  display:flex; gap:4px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:4px; margin-bottom:20px; width:fit-content;
+}
+.tab {
+  padding:9px 22px; border-radius:7px; font-size:13px; font-weight:700;
+  cursor:pointer; border:none; background:transparent; color:var(--text-dim);
+  font-family:'Syne',sans-serif; letter-spacing:.3px;
+  transition:background .2s, color .2s;
+}
+.tab.active { background:var(--surface2); color:var(--blue); }
+
+/* ── HEADER ── */
+header { margin-bottom:28px; }
+.header-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-bottom:20px; }
+.brand { display:flex; align-items:center; gap:14px; }
+.brand-icon {
+  width:46px; height:46px;
+  background:linear-gradient(135deg,var(--blue-dim),var(--blue));
+  border-radius:11px; display:flex; align-items:center; justify-content:center;
+  font-size:22px; box-shadow:var(--glow-blue);
+}
+.brand-name { font-size:22px; font-weight:800; letter-spacing:-0.5px; }
+.brand-name span { color:var(--blue); }
+.brand-sub { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); margin-top:2px; letter-spacing:2px; }
+.status-pill {
+  display:flex; align-items:center; gap:8px;
+  background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:7px 14px;
+  font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-dim);
+}
+.pulse-dot { width:7px; height:7px; border-radius:50%; background:var(--text-muted); transition:background .3s; }
+.pulse-dot.active { background:var(--green); animation:pulse 2s infinite; }
+.pulse-dot.scanning { background:var(--orange); animation:pulse .7s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)} }
+@keyframes fadeUp { from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none} }
+@keyframes cardIn { from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none} }
+
+/* ── INFO STRIP ── */
+.info-strip {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px;
+  background:var(--border); border:1px solid var(--border); border-radius:var(--radius);
+  overflow:hidden; margin-bottom:20px; animation:fadeUp .4s ease both;
+}
+.info-cell { background:var(--surface); padding:16px 18px; }
+.info-label { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:2.5px; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px; }
+.info-value { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500; color:var(--text); word-break:break-all; }
+.info-value.blue{color:var(--blue)} .info-value.green{color:var(--green)} .info-value.purple{color:var(--purple)} .info-value.cyan{color:var(--cyan)}
+
+/* ── TOOLBAR ── */
+.toolbar { display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap; animation:fadeUp .4s .1s ease both; }
+.btn-scan {
+  display:flex; align-items:center; gap:9px;
+  background:linear-gradient(135deg,var(--blue-dim),var(--blue));
+  border:none; color:#fff; font-family:'Syne',sans-serif; font-size:14px; font-weight:700;
+  padding:12px 26px; border-radius:10px; cursor:pointer;
+  box-shadow:0 4px 18px rgba(58,123,213,.35); transition:opacity .2s, box-shadow .2s, transform .1s;
+}
+.btn-scan:hover{opacity:.9;box-shadow:0 6px 28px rgba(58,123,213,.5)}
+.btn-scan:active{transform:scale(.98)} .btn-scan:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.count-badge {
+  background:var(--surface); border:1px solid var(--border); border-radius:20px;
+  padding:7px 14px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--blue);
+}
+.search-box {
+  background:var(--surface); border:1px solid var(--border); border-radius:9px;
+  padding:10px 14px; color:var(--text); font-family:'JetBrains Mono',monospace; font-size:13px;
+  outline:none; transition:border-color .2s; width:210px; margin-left:auto;
+}
+.search-box::placeholder{color:var(--text-muted)} .search-box:focus{border-color:var(--border-glow)}
+
+/* ── PROGRESS ── */
+.progress-wrap {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:18px 22px; margin-bottom:18px; display:none;
+}
+.progress-wrap.visible{display:block}
+.progress-label { display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-dim); margin-bottom:10px; }
+.progress-bar { height:3px; background:var(--surface2); border-radius:2px; overflow:hidden; }
+.progress-fill { height:100%; background:linear-gradient(90deg,var(--blue-dim),var(--blue),var(--cyan)); border-radius:2px; width:0%; transition:width .3s ease; }
+
+/* ── DEVICES GRID ── */
+.devices-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:13px; }
+.section-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:11px; font-weight:700; letter-spacing:2px; color:var(--text-muted); text-transform:uppercase; }
+.section-line { flex:1; height:1px; background:var(--border); }
+
+/* ── DEVICE CARD ── */
+.device-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:18px 20px; cursor:pointer; position:relative; overflow:hidden;
+  transition:border-color .2s, box-shadow .2s, transform .15s;
+  animation:cardIn .4s ease both;
+}
+.device-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--blue),transparent); opacity:0; transition:opacity .2s;
+}
+.device-card:hover::before{opacity:1}
+.device-card:hover{border-color:var(--border-glow);box-shadow:var(--glow-blue);transform:translateY(-2px)}
+.device-card.self{border-color:rgba(72,187,120,.3)}
+.device-card.self::before{background:linear-gradient(90deg,transparent,var(--green),transparent);opacity:1}
+.device-card.gateway{border-color:rgba(246,173,85,.3)}
+.device-card.gateway::before{background:linear-gradient(90deg,transparent,var(--orange),transparent);opacity:1}
+
+.card-top{display:flex;align-items:flex-start;gap:13px;margin-bottom:14px}
+.device-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border)}
+.device-icon.self{background:rgba(72,187,120,.1);border-color:rgba(72,187,120,.3)}
+.device-icon.gateway{background:rgba(246,173,85,.1);border-color:rgba(246,173,85,.3)}
+.card-info{flex:1;min-width:0}
+.device-ip{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:500;color:var(--blue);margin-bottom:3px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.device-ip.self-ip{color:var(--green)} .device-ip.gw-ip{color:var(--orange)}
+.device-hostname{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:1px}
+.tag.self-tag{background:rgba(72,187,120,.12);color:var(--green);border:1px solid rgba(72,187,120,.3)}
+.tag.gw-tag{background:rgba(246,173,85,.1);color:var(--orange);border:1px solid rgba(246,173,85,.3)}
+.card-details{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.detail-label{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px}
+.detail-value{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);word-break:break-all}
+.detail-value.accent{color:var(--purple)}
+
+/* ── GEO BADGE on device card ── */
+.geo-badge {
+  margin-top:12px; padding:9px 12px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  display:flex; align-items:center; gap:8px;
+}
+.geo-badge-flag { font-size:18px; }
+.geo-badge-text { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--cyan); line-height:1.5; }
+.geo-badge-loc { color:var(--text-dim); font-size:10px; }
+
+/* ── MAP TAB ── */
+#mapTab { display:none; }
+#mapTab.active { display:block; }
+
+.geo-summary {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:13px; margin-bottom:20px;
+}
+.geo-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px;
+  animation:fadeUp .4s ease both;
+}
+.geo-card-title { font-size:11px; font-weight:700; letter-spacing:2px; color:var(--text-muted); text-transform:uppercase; margin-bottom:12px; }
+.geo-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
+.geo-row:last-child{border-bottom:none}
+.geo-key { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-muted); }
+.geo-val { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text); text-align:right; max-width:55%; word-break:break-all; }
+.geo-val.blue{color:var(--blue)} .geo-val.green{color:var(--green)} .geo-val.cyan{color:var(--cyan)}
+
+/* ── LEAFLET MAP ── */
+#leafletMap {
+  height:480px; border-radius:var(--radius); border:1px solid var(--border);
+  overflow:hidden; margin-bottom:20px;
+  filter:saturate(0.6) brightness(0.7);
+  box-shadow:var(--glow-blue);
+}
+/* Dark tiles look */
+.leaflet-tile { filter:invert(1) hue-rotate(180deg) saturate(0.4) brightness(0.85); }
+.leaflet-container { background:#0e1320 !important; }
+
+/* Custom marker popup */
+.map-popup { font-family:'JetBrains Mono',monospace; font-size:12px; color:#e2e8f0; background:#0e1320; border:1px solid rgba(99,179,237,0.3); border-radius:8px; padding:2px 4px; }
+.leaflet-popup-content-wrapper { background:#0e1320 !important; border:1px solid rgba(99,179,237,0.3) !important; border-radius:10px !important; color:#e2e8f0 !important; }
+.leaflet-popup-tip { background:#0e1320 !important; }
+.leaflet-popup-content { margin:12px 14px !important; }
+
+.device-markers-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+.marker-item {
+  background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px;
+  display:flex; gap:12px; align-items:flex-start; cursor:pointer;
+  transition:border-color .2s, box-shadow .2s;
+}
+.marker-item:hover{border-color:var(--border-glow);box-shadow:var(--glow-blue)}
+.marker-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+.marker-info { flex:1; min-width:0; }
+.marker-ip { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--blue); margin-bottom:3px; }
+.marker-loc { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); }
+.marker-coords { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-muted); margin-top:3px; }
+
+/* ── EMPTY / ERROR ── */
+.empty-state { text-align:center; padding:70px 20px; color:var(--text-muted); }
+.empty-state .big-icon { font-size:54px; margin-bottom:14px; opacity:.45; }
+.empty-state h3 { font-size:17px; color:var(--text-dim); margin-bottom:8px; }
+.empty-state p { font-size:14px; line-height:1.7; max-width:380px; margin:0 auto; }
+
+/* ── TOPOLOGY CANVAS ── */
+.topo-section { margin-top:26px; }
+.topo-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+#topoCanvas { display:block; width:100%; }
+
+/* ── TOAST ── */
+.toast {
+  position:fixed; bottom:24px; right:24px;
+  background:var(--surface2); border:1px solid var(--border-glow); border-radius:10px;
+  padding:12px 18px; font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--blue);
+  box-shadow:var(--glow-blue); transform:translateY(70px); opacity:0;
+  transition:transform .3s, opacity .3s; z-index:9999;
+}
+.toast.show{transform:none;opacity:1}
+
+footer { text-align:center; margin-top:50px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-muted); letter-spacing:2px; }
+
+@media(max-width:600px){
+  .devices-grid,.geo-summary,.device-markers-list{grid-template-columns:1fr}
+  .search-box{width:100%;margin-left:0}
+  .info-strip{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<header>
+  <div class="header-top">
+    <div class="brand">
+      <div class="brand-icon">🛰</div>
+      <div>
+        <div class="brand-name">Net<span>Scanner</span></div>
+        <div class="brand-sub">LOCAL NETWORK + GEOLOCATION</div>
+      </div>
+    </div>
+    <div class="status-pill">
+      <div class="pulse-dot" id="statusDot"></div>
+      <span id="statusText">READY</span>
+    </div>
+  </div>
+
+  <!-- INFO STRIP -->
+  <div class="info-strip" id="infoStrip">
+    <div class="info-cell"><div class="info-label">My Local IP</div><div class="info-value blue" id="myIp">—</div></div>
+    <div class="info-cell"><div class="info-label">MAC Address</div><div class="info-value" id="myMac">—</div></div>
+    <div class="info-cell"><div class="info-label">Hostname</div><div class="info-value green" id="myHostname">—</div></div>
+    <div class="info-cell"><div class="info-label">Gateway</div><div class="info-value" id="myGateway">—</div></div>
+    <div class="info-cell"><div class="info-label">Public IP</div><div class="info-value cyan" id="myPublicIp">—</div></div>
+    <div class="info-cell"><div class="info-label">Location</div><div class="info-value purple" id="myLocation">—</div></div>
+    <div class="info-cell"><div class="info-label">ISP</div><div class="info-value" id="myIsp">—</div></div>
+    <div class="info-cell"><div class="info-label">Subnet</div><div class="info-value" id="mySubnet">—</div></div>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('devices')">📡 Devices</button>
+  <button class="tab" onclick="switchTab('map')">🗺 Geo Map</button>
+  <button class="tab" onclick="switchTab('topology')">🔗 Topology</button>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <button class="btn-scan" id="scanBtn" onclick="startScan()">
+    <span>⚡</span>
+    <span id="btnLabel">Scan Network</span>
+  </button>
+  <div class="count-badge" id="countBadge">0 devices</div>
+  <input class="search-box" type="text" placeholder="🔍  IP, hostname, vendor…" id="searchBox" oninput="filterDevices()"/>
+</div>
+
+<!-- PROGRESS -->
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-label">
+    <span id="progressText">Scanning…</span>
+    <span id="progressPct">0%</span>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<!-- TAB: DEVICES -->
+<div id="devicesTab">
+  <div class="empty-state">
+    <div class="big-icon">🌐</div>
+    <h3>Ready to Scan</h3>
+    <p>Click <strong>Scan Network</strong> to discover all devices and their locations.</p>
+  </div>
+</div>
+
+<!-- TAB: GEO MAP -->
+<div id="mapTab">
+  <div id="geoSummary" class="geo-summary"></div>
+  <div id="leafletMap"></div>
+  <div class="section-header"><span>Device Locations</span><div class="section-line"></div></div>
+  <div class="device-markers-list" id="markersList"></div>
+</div>
+
+<!-- TAB: TOPOLOGY -->
+<div id="topologyTab" style="display:none">
+  <div class="topo-wrap">
+    <canvas id="topoCanvas" height="300"></canvas>
+  </div>
+</div>
+
+<footer>NetScanner v2 · geo powered by ipapi.co · no data leaves your machine except geo requests</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:5000';
+let allDevices = [], networkInfo = {}, leafletMap = null, markers = [];
+let activeTab = 'devices';
+
+// ── UTILS ──────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+function setStatus(state, text) {
+  document.getElementById('statusDot').className = 'pulse-dot ' + (state || '');
+  document.getElementById('statusText').textContent = text;
+}
+function setProgress(pct, label) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = label;
+  document.getElementById('progressPct').textContent = Math.round(pct) + '%';
+}
+function iconFor(d) {
+  if (d.is_self) return '💻';
+  if (d.is_gateway) return '📡';
+  const t = (d.device_type || '').toLowerCase();
+  if (t.includes('apple')) return '🍎';
+  if (t.includes('mobile') || t.includes('phone')) return '📱';
+  if (t.includes('raspberry')) return '🫐';
+  if (t.includes('virtual')) return '🖥';
+  if (t.includes('network') || t.includes('router')) return '🔌';
+  return '🖥';
+}
+function flagEmoji(cc) {
+  if (!cc || cc.length !== 2) return '🌐';
+  return cc.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E0 + c.charCodeAt(0) - 65)).join('');
+}
+function dotColor(d) {
+  if (d.is_self) return '#48bb78';
+  if (d.is_gateway) return '#f6ad55';
+  return '#63b3ed';
+}
+
+// ── TABS ──────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', ['devices','map','topology'][i] === tab));
+  document.getElementById('devicesTab').style.display  = tab === 'devices'  ? '' : 'none';
+  document.getElementById('mapTab').style.display      = tab === 'map'      ? '' : 'none';
+  document.getElementById('topologyTab').style.display = tab === 'topology' ? '' : 'none';
+  if (tab === 'map' && allDevices.length) {
+    setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 100);
+  }
+  if (tab === 'topology' && allDevices.length) drawTopology();
+}
+
+// ── LOAD BASIC INFO ───────────────────────────────────────
+async function loadInfo() {
+  try {
+    const res = await fetch(API + '/api/info');
+    const d = await res.json();
+    networkInfo = d;
+    document.getElementById('myIp').textContent       = d.local_ip || '—';
+    document.getElementById('myMac').textContent      = d.local_mac || '—';
+    document.getElementById('myHostname').textContent = d.hostname || '—';
+    document.getElementById('myGateway').textContent  = d.gateway || '—';
+    document.getElementById('mySubnet').textContent   = d.subnet || '—';
+    if (d.geo) {
+      document.getElementById('myPublicIp').textContent = d.geo.public_ip || '—';
+      document.getElementById('myLocation').textContent = `${d.geo.city}, ${d.geo.country}`;
+      document.getElementById('myIsp').textContent      = d.geo.isp || '—';
+    }
+    setStatus('active', 'CONNECTED');
+  } catch(e) {
+    setStatus('', 'OFFLINE');
+    document.getElementById('myIp').textContent = 'Server not running';
+    document.getElementById('myIp').style.color = 'var(--red)';
+    document.getElementById('devicesTab').innerHTML = `
+      <div class="empty-state">
+        <div class="big-icon">⚠️</div>
+        <h3>Backend Not Running</h3>
+        <p>Start the server first:<br><br>
+        <code style="background:var(--surface2);padding:4px 10px;border-radius:6px;color:var(--blue)">python server.py</code><br><br>
+        Then refresh this page.</p>
+      </div>`;
+  }
+}
+
+// ── SCAN ──────────────────────────────────────────────────
+let _scanInterval;
+async function startScan() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  document.getElementById('btnLabel').textContent = 'Scanning…';
+  document.getElementById('progressWrap').classList.add('visible');
+  setStatus('scanning', 'SCANNING');
+  allDevices = [];
+  renderDevices([]);
+
+  let fake = 0;
+  _scanInterval = setInterval(() => {
+    fake = Math.min(fake + Math.random() * 2.5, 88);
+    setProgress(fake, 'Pinging hosts…');
+  }, 180);
+
+  try {
+    const res = await fetch(API + '/api/scan');
+    const data = await res.json();
+    clearInterval(_scanInterval);
+    setProgress(100, 'Done!');
+    setTimeout(() => document.getElementById('progressWrap').classList.remove('visible'), 1200);
+
+    allDevices = data.devices || [];
+    networkInfo = data.network_info || networkInfo;
+    renderDevices(allDevices);
+    buildGeoMap(allDevices, data.network_info);
+    setStatus('active', `FOUND ${allDevices.length} DEVICE${allDevices.length !== 1 ? 'S' : ''}`);
+    toast(`✅ Found ${allDevices.length} device${allDevices.length !== 1 ? 's' : ''}`);
+  } catch(e) {
+    clearInterval(_scanInterval);
+    setStatus('', 'ERROR');
+    document.getElementById('progressWrap').classList.remove('visible');
+    toast('❌ Scan failed — is server.py running?');
+  }
+
+  btn.disabled = false;
+  document.getElementById('btnLabel').textContent = 'Re-Scan';
+}
+
+// ── RENDER DEVICE CARDS ───────────────────────────────────
+function renderDevices(devices) {
+  const area = document.getElementById('devicesTab');
+  document.getElementById('countBadge').textContent = `${devices.length} device${devices.length !== 1 ? 's' : ''}`;
+
+  if (!devices.length) {
+    area.innerHTML = allDevices.length
+      ? `<div class="empty-state"><div class="big-icon">🔍</div><h3>No Matches</h3><p>Try a different filter.</p></div>`
+      : `<div class="empty-state"><div class="big-icon">🌐</div><h3>Ready to Scan</h3><p>Click Scan Network to discover devices.</p></div>`;
+    return;
+  }
+
+  let html = `<div class="section-header"><span>Connected Devices</span><div class="section-line"></div></div><div class="devices-grid" id="devicesGrid">`;
+  devices.forEach((d, i) => {
+    const selfClass = d.is_self ? 'self' : d.is_gateway ? 'gateway' : '';
+    const ipClass   = d.is_self ? 'self-ip' : d.is_gateway ? 'gw-ip' : '';
+    const iconCls   = d.is_self ? 'self' : d.is_gateway ? 'gateway' : '';
+    const tagHtml   = d.is_self ? '<span class="tag self-tag">THIS DEVICE</span>' : d.is_gateway ? '<span class="tag gw-tag">GATEWAY</span>' : '';
+    const geo       = d.geo;
+    const geoBadge  = geo && geo.lat ? `
+      <div class="geo-badge">
+        <div class="geo-badge-flag">${flagEmoji(geo.country_code)}</div>
+        <div>
+          <div class="geo-badge-text">${geo.city}, ${geo.region}, ${geo.country}</div>
+          <div class="geo-badge-text geo-badge-loc">${geo.lat?.toFixed(4)}, ${geo.lon?.toFixed(4)} · ${geo.isp || ''}</div>
+        </div>
+      </div>` : '';
+
+    html += `<div class="device-card ${selfClass}" style="animation-delay:${i*35}ms" onclick="onCardClick('${d.ip}')">
+      <div class="card-top">
+        <div class="device-icon ${iconCls}">${iconFor(d)}</div>
+        <div class="card-info">
+          <div class="device-ip ${ipClass}">${d.ip} ${tagHtml}</div>
+          <div class="device-hostname">${d.hostname !== 'Unknown' ? d.hostname : d.device_type}</div>
+        </div>
+      </div>
+      <div class="card-details">
+        <div><div class="detail-label">MAC Address</div><div class="detail-value">${d.mac}</div></div>
+        <div><div class="detail-label">Vendor</div><div class="detail-value accent">${d.vendor}</div></div>
+        <div><div class="detail-label">Device Type</div><div class="detail-value">${d.device_type}</div></div>
+        <div><div class="detail-label">Hostname</div><div class="detail-value">${d.hostname}</div></div>
+      </div>
+      ${geoBadge}
+    </div>`;
+  });
+  html += '</div>';
+  area.innerHTML = html;
+}
+
+function onCardClick(ip) {
+  navigator.clipboard?.writeText(ip);
+  toast(`📋 Copied ${ip}`);
+  // Switch to map and fly to this device's marker
+  const d = allDevices.find(x => x.ip === ip);
+  if (d && d.geo && d.geo.lat && leafletMap) {
+    switchTab('map');
+    leafletMap.flyTo([d.geo.lat, d.geo.lon], 13, { duration: 1.2 });
+    const m = markers.find(x => x.ip === ip);
+    if (m) m.marker.openPopup();
+  }
+}
+
+// ── FILTER ───────────────────────────────────────────────
+function filterDevices() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  renderDevices(!q ? allDevices : allDevices.filter(d =>
+    [d.ip, d.hostname, d.vendor, d.mac, d.device_type].some(v => v.toLowerCase().includes(q))
+  ));
+}
+
+// ── GEO MAP (Leaflet) ─────────────────────────────────────
+function buildGeoMap(devices, info) {
+  const geo = info?.geo || {};
+
+  // Geo summary cards
+  const sumEl = document.getElementById('geoSummary');
+  sumEl.innerHTML = `
+    <div class="geo-card">
+      <div class="geo-card-title">📍 Your Public Location</div>
+      <div class="geo-row"><span class="geo-key">Public IP</span><span class="geo-val blue">${geo.public_ip || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">City</span><span class="geo-val">${geo.city || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">Region</span><span class="geo-val">${geo.region || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">Country</span><span class="geo-val">${geo.country || '—'} ${flagEmoji(geo.country_code)}</span></div>
+      <div class="geo-row"><span class="geo-key">Timezone</span><span class="geo-val">${geo.timezone || '—'}</span></div>
+    </div>
+    <div class="geo-card">
+      <div class="geo-card-title">🌐 Network Details</div>
+      <div class="geo-row"><span class="geo-key">ISP / Org</span><span class="geo-val cyan">${geo.isp || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">ASN</span><span class="geo-val">${geo.asn || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">Coordinates</span><span class="geo-val green">${geo.lat?.toFixed(4) || '—'}, ${geo.lon?.toFixed(4) || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">Postal Code</span><span class="geo-val">${geo.postal || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">LAN Devices</span><span class="geo-val blue">${devices.length}</span></div>
+    </div>
+    <div class="geo-card">
+      <div class="geo-card-title">📡 Local Network</div>
+      <div class="geo-row"><span class="geo-key">Local IP</span><span class="geo-val">${info?.local_ip || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">Subnet</span><span class="geo-val">${info?.subnet || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">Gateway</span><span class="geo-val orange">${info?.gateway || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">DNS</span><span class="geo-val">${(info?.dns || []).join(', ') || '—'}</span></div>
+      <div class="geo-row"><span class="geo-key">Hostname</span><span class="geo-val">${info?.hostname || '—'}</span></div>
+    </div>
+  `;
+  sumEl.querySelector('.geo-card:nth-child(2) .geo-val.orange') && null; // fix orange class
+
+  // Init Leaflet
+  const lat = geo.lat || 0, lon = geo.lon || 0;
+  if (!leafletMap) {
+    leafletMap = L.map('leafletMap', { zoomControl: true }).setView([lat, lon], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(leafletMap);
+  } else {
+    leafletMap.setView([lat, lon], 12);
+  }
+
+  // Clear old markers
+  markers.forEach(m => leafletMap.removeLayer(m.marker));
+  markers = [];
+
+  // Add markers — all LAN devices cluster at the public IP location
+  // with slight random offsets so they don't completely overlap
+  devices.forEach((d, i) => {
+    if (!d.geo || !d.geo.lat) return;
+
+    // Slight jitter so cards don't stack
+    const jitterLat = (Math.random() - 0.5) * 0.003;
+    const jitterLon = (Math.random() - 0.5) * 0.003;
+    const lat2 = d.geo.lat + jitterLat;
+    const lon2 = d.geo.lon + jitterLon;
+
+    const color = d.is_self ? '#48bb78' : d.is_gateway ? '#f6ad55' : '#63b3ed';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:36px;height:36px;border-radius:50%;
+        background:${color}22;border:2px solid ${color};
+        display:flex;align-items:center;justify-content:center;
+        font-size:16px;box-shadow:0 0 14px ${color}55;
+        cursor:pointer;
+      ">${iconFor(d)}</div>`,
+      iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20]
+    });
+
+    const popup = `
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;min-width:180px">
+        <div style="font-size:16px;margin-bottom:6px">${iconFor(d)} <strong style="color:${color}">${d.ip}</strong></div>
+        <div style="color:#a0aec0;margin-bottom:2px">${d.hostname !== 'Unknown' ? d.hostname : d.device_type}</div>
+        <div style="color:#718096;font-size:10px">MAC: ${d.mac}</div>
+        <div style="color:#718096;font-size:10px">Vendor: ${d.vendor}</div>
+        <hr style="border-color:#2d3748;margin:6px 0"/>
+        <div style="color:#76e4f7;font-size:10px">📍 ${d.geo.city}, ${d.geo.country}</div>
+        <div style="color:#4a5568;font-size:10px">${lat2.toFixed(5)}, ${lon2.toFixed(5)}</div>
+      </div>`;
+
+    const marker = L.marker([lat2, lon2], { icon }).addTo(leafletMap).bindPopup(popup);
+    markers.push({ ip: d.ip, marker });
+  });
+
+  // Fit map to markers
+  if (markers.length > 0) {
+    const group = L.featureGroup(markers.map(m => m.marker));
+    leafletMap.fitBounds(group.getBounds().pad(0.3));
+  }
+
+  // Markers list
+  const listEl = document.getElementById('markersList');
+  listEl.innerHTML = devices.map(d => `
+    <div class="marker-item" onclick="flyToDevice('${d.ip}')">
+      <div class="marker-dot" style="background:${dotColor(d)}"></div>
+      <div class="marker-info">
+        <div class="marker-ip">${iconFor(d)} ${d.ip} <span style="font-size:10px;color:var(--text-muted)">${d.is_self ? '· You' : d.is_gateway ? '· Gateway' : ''}</span></div>
+        <div class="marker-loc">${d.geo ? `${flagEmoji(d.geo.country_code)} ${d.geo.city}, ${d.geo.country}` : 'No geo data'}</div>
+        <div class="marker-coords">${d.geo?.lat ? `${d.geo.lat.toFixed(4)}°N  ${d.geo.lon.toFixed(4)}°E` : ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function flyToDevice(ip) {
+  const d = allDevices.find(x => x.ip === ip);
+  if (d && d.geo && d.geo.lat && leafletMap) {
+    switchTab('map');
+    const m = markers.find(x => x.ip === ip);
+    if (m) {
+      leafletMap.flyTo(m.marker.getLatLng(), 14, { duration: 1 });
+      setTimeout(() => m.marker.openPopup(), 1100);
+    }
+  }
+}
+
+// ── TOPOLOGY CANVAS ───────────────────────────────────────
+function drawTopology() {
+  const devices = allDevices;
+  if (!devices.length) return;
+  const canvas = document.getElementById('topoCanvas');
+  const W = canvas.parentElement.clientWidth - 40;
+  canvas.width = W; canvas.height = 300;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, 300);
+  ctx.fillStyle = '#0e1320';
+  ctx.fillRect(0, 0, W, 300);
+
+  const gw = devices.find(d => d.is_gateway);
+  const gwX = W / 2, gwY = 55;
+  const others = devices.filter(d => !d.is_gateway);
+  const spacing = W / (others.length + 1);
+
+  others.forEach((d, i) => {
+    const x = spacing * (i + 1), y = 220;
+    ctx.beginPath(); ctx.moveTo(gwX, gwY + 26); ctx.lineTo(x, y - 26);
+    ctx.strokeStyle = d.is_self ? 'rgba(72,187,120,.4)' : 'rgba(99,179,237,.15)';
+    ctx.lineWidth = d.is_self ? 2 : 1;
+    ctx.setLineDash(d.is_self ? [] : [4, 6]);
+    ctx.stroke(); ctx.setLineDash([]);
+  });
+
+  drawNode(ctx, gwX, gwY, '📡', gw ? gw.ip : 'Router', '#f6ad55', 26, 11);
+  others.forEach((d, i) => {
+    drawNode(ctx, spacing * (i + 1), 220, iconFor(d), d.ip, dotColor(d), 20, 10);
+  });
+}
+function drawNode(ctx, x, y, icon, label, color, r, fs) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = color + '15'; ctx.fill();
+  ctx.strokeStyle = color + '70'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.font = `${r - 3}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(icon, x, y);
+  ctx.font = `${fs}px JetBrains Mono, monospace`; ctx.fillStyle = color;
+  ctx.fillText(label, x, y + r + 13);
+}
+
+// ── INIT ─────────────────────────────────────────────────
+loadInfo();
+switchTab('devices');
+window.addEventListener('resize', () => { if (allDevices.length) drawTopology(); });
+</script>
+</body>
+</html>
